@@ -1,66 +1,103 @@
-// Import required modules
 const express = require('express');
 const cors = require('cors');
-const { MongoClient } = require('mongodb');
-require('dotenv').config();  // Loads environment variables from the .env file
-
+require('dotenv').config();
+const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 const app = express();
-const port = process.env.PORT || 5000;  // Use port from environment variables or default to 5000
+const port = process.env.PORT || 5000;
 
-// Middleware
-app.use(cors());  // Enable CORS for all routes
-app.use(express.json());  // Parse JSON bodies
-
-// MongoDB connection URI from environment variables
-// const uri = process.env.MONGO_URI || 'mongodb://localhost:27017/';  // Default to local MongoDB if no env var is set
+// middleware
+app.use(cors());
+app.use(express.json());
 
 
 
-// var MongoClient = require('mongodb').MongoClient;
+// const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.swu9d.mongodb.net/?retryWrites=true&w=majority`;
+console.log(uri);
 
-// var uri = "mongodb://coffeeMaster:wc18pv2VL0FIbnJj@cluster0-shard-00-00.ht3jo.mongodb.net:27017,cluster0-shard-00-01.ht3jo.mongodb.net:27017,cluster0-shard-00-02.ht3jo.mongodb.net:27017/?ssl=true&replicaSet=atlas-302waq-shard-0&authSource=admin&retryWrites=true&w=majority&appName=Cluster0";
 
-
-var uri = "mongodb://coffeeMaster:wc18pv2VL0FIbnJj@cluster0-shard-00-00.ht3jo.mongodb.net:27017,cluster0-shard-00-01.ht3jo.mongodb.net:27017,cluster0-shard-00-02.ht3jo.mongodb.net:27017/?ssl=true&replicaSet=atlas-302waq-shard-0&authSource=admin&retryWrites=true&w=majority&appName=Cluster0";
-
-MongoClient.connect(uri, function(err, client) {
-  const collection = client.db("test").collection("devices");
-  // perform actions on the collection object
-//   client.close();
-});
-
-// Connect to MongoDB
-console.log('Attempting to connect to MongoDB...');
-MongoClient.connect(uri, {}, (err, client) => {
-    if (err) {
-        console.error('Error connecting to MongoDB:', err.message);  // Log error message
-        return;
+var uri = "mongodb://coffeeMaster:sigF1LW2Ul9eSxx1@cluster0-shard-00-00.ht3jo.mongodb.net:27017,cluster0-shard-00-01.ht3jo.mongodb.net:27017,cluster0-shard-00-02.ht3jo.mongodb.net:27017/?ssl=true&replicaSet=atlas-302waq-shard-0&authSource=admin&retryWrites=true&w=majority&appName=Cluster0";
+// Create a MongoClient with a MongoClientOptions object to set the Stable API version
+const client = new MongoClient(uri, {
+    serverApi: {
+        version: ServerApiVersion.v1,
+        strict: true,
+        deprecationErrors: true,
     }
-
-    console.log('Connected to local MongoDB');
-
-    const db = client.db('coffee_shop');  // Use your local database name (e.g., 'coffee_shop')
-    const collection = db.collection('devices');  // Define the collection (e.g., 'devices')
-
-    // Perform a test query to ensure the collection is accessible
-    collection.findOne({}, (err, result) => {
-        if (err) {
-            console.error('Error querying the collection:', err.message);
-        } else {
-            console.log('Query result:', result);  // Log the query result
-        }
-
-        // Close the connection after operations
-        client.close();
-    });
 });
 
-// Define a route to verify the server is running
+async function run() {
+    try {
+        // Connect the client to the server	(optional starting in v4.7)
+        await client.connect();
+
+        const coffeeCollection = client.db('coffeeDB').collection('coffee');
+
+        app.get('/coffee', async (req, res) => {
+            const cursor = coffeeCollection.find();
+            const result = await cursor.toArray();
+            res.send(result);
+        })
+
+        app.get('/coffee/:id', async(req, res) => {
+            const id = req.params.id;
+            const query = {_id: new ObjectId(id)}
+            const result = await coffeeCollection.findOne(query);
+            res.send(result);
+        })
+
+        app.post('/coffee', async (req, res) => {
+            const newCoffee = req.body;
+            console.log(newCoffee);
+            const result = await coffeeCollection.insertOne(newCoffee);
+            res.send(result);
+        })
+
+        app.put('/coffee/:id', async(req, res) => {
+            const id = req.params.id;
+            const filter = {_id: new ObjectId(id)}
+            const options = { upsert: true };
+            const updatedCoffee = req.body;
+
+            const coffee = {
+                $set: {
+                    name: updatedCoffee.name, 
+                    quantity: updatedCoffee.quantity, 
+                    supplier: updatedCoffee.supplier, 
+                    taste: updatedCoffee.taste, 
+                    category: updatedCoffee.category, 
+                    details: updatedCoffee.details, 
+                    photo: updatedCoffee.photo
+                }
+            }
+
+            const result = await coffeeCollection.updateOne(filter, coffee, options);
+            res.send(result);
+        })
+
+        app.delete('/coffee/:id', async (req, res) => {
+            const id = req.params.id;
+            const query = { _id: new ObjectId(id) }
+            const result = await coffeeCollection.deleteOne(query);
+            res.send(result);
+        })
+
+
+        // Send a ping to confirm a successful connection
+        await client.db("admin").command({ ping: 1 });
+        console.log("Pinged your deployment. You successfully connected to MongoDB!");
+    } finally {
+        // Ensures that the client will close when you finish/error
+        // await client.close();
+    }
+}
+run().catch(console.dir);
+
+
+
 app.get('/', (req, res) => {
-    res.send('Coffee making server is running locally');
-});
+    res.send('Coffee making server is running')
+})
 
-// Start the server
 app.listen(port, () => {
-    console.log(`Coffee Server is running on port: ${port}`);
-});
+    console.log(`Coffee Server is running on port: ${port}`)
+})
